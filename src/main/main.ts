@@ -1,20 +1,21 @@
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
-/**
- * This module executes inside of electron's main process. You can start
- * electron renderer process from here and communicate with the other processes
- * through IPC.
- *
- * When running `npm run build` or `npm run build:main`, this file is compiled to
- * `./src/main.js` using webpack. This gives us some performance wins.
- */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  OpenDialogReturnValue,
+  dialog,
+  globalShortcut,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
-
+import { resolveHtmlPath, spawnPromise } from './util';
+import { onRun } from './modules/buildAndRun';
+import fs from 'fs';
 class AppUpdater {
   constructor() {
     log.transports.file.level = 'info';
@@ -24,11 +25,47 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
-
+let code = ``;
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.handle('run-code', onRun);
+ipcMain.handle('save-file', (_event, args) => {
+  fs.writeFileSync(args[1], args[0]);
+});
+ipcMain.handle('open-file', () => {
+  dialog
+    .showOpenDialog({ properties: ['openFile'] })
+    .then((value: OpenDialogReturnValue) => {
+      const fileNames = value.filePaths[0];
+      // fileNames is an array that contains all the selected
+      if (fileNames === undefined) {
+        console.log('No file selected');
+        return;
+      }
+
+      fs.readFile(fileNames, 'utf-8', (err: any, data: any) => {
+        if (err) {
+          alert('An error ocurred reading the file :' + err.message);
+          return;
+        }
+        if (mainWindow)
+          mainWindow.webContents.send('read-code-file', [data, fileNames]);
+      });
+    });
+});
+
+ipcMain.handle('open-folder', async (_event) => {
+  const value = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  _event.sender.send('open-folder-reply', [value.filePaths[0]]);
+});
+
+ipcMain.handle('create-file', async (_event, args) => {
+  await spawnPromise('touch', [args]);
+  if (mainWindow) mainWindow.webContents.send('read-code-file', ['', args]);
 });
 
 if (process.env.NODE_ENV === 'production') {
