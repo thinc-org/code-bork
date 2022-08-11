@@ -1,31 +1,22 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import { hash } from './utils';
 import './App.css';
 import dracularTheme from './dracularTheme';
-import { useEffect } from 'react';
 
-const defaultCode = `//Hi Bork Bork 🐶
-#include <iostream>
-using namespace std;
-
-int main()
-{
-    return 0;
-}
-`;
 const Hello = () => {
-  const [code, setCode] = useState(defaultCode);
+  const [code, setCode] = useState(``);
   const [path, setPath] = useState('');
   const [isSetTheme, setIsSetTheme] = useState(false);
   const [lastHash, setLastHash] = useState(0);
   const [isCompiling, setIsCompiling] = useState(false);
+  const { ipcRenderer } = window.electron;
   useEffect(() => {
-    function handleKeyPress(event: any) {
+    function handleKeyPress(event: KeyboardEvent) {
       if (event.metaKey && event.key === 's') {
         event.preventDefault();
-        window.electron.ipcRenderer.invoke('save-file', [code, path]);
+        ipcRenderer.invoke('save-file', [code, path]);
         setLastHash(hash(code));
       }
     }
@@ -33,14 +24,14 @@ const Hello = () => {
   });
 
   const isSaved = hash(code) === lastHash;
-  console.log('isSaved', isSaved);
-  window.electron.ipcRenderer.once('read-code-file', (args: string[]) => {
+  ipcRenderer.once('read-code-file', (args: string[]) => {
     setCode(args[0] as string);
     setPath(args[1] as string);
   });
+
   const runCode = async () => {
     setIsCompiling(true);
-    await window.electron.ipcRenderer.invoke('run-code', [code, path]);
+    await ipcRenderer.invoke('run-code', [code, path]);
     setIsCompiling(false);
   };
   const monaco = useMonaco();
@@ -49,44 +40,39 @@ const Hello = () => {
     if (!monaco) {
       return;
     }
-    monaco.editor.defineTheme('dracular', dracularTheme as any);
+    monaco.editor.defineTheme('dracular', dracularTheme);
     monaco.editor.setTheme('dracular');
     setIsSetTheme(true);
-    console.log('set theme');
   };
-  console.log('setIsCompiling', isCompiling);
   useEffect(setTheme, [monaco]);
   useEffect(() => {
-    if (path != '') {
-      console.log(path, path.split('/')[path.length - 1]);
+    if (path !== '') {
       window.document.title = `${
         path.split('/')[path.split('/').length - 1]
       } | 🐶`;
     }
   }, [path]);
   const handleOpenFile = () => {
-    window.electron.ipcRenderer.invoke('open-file');
+    ipcRenderer.invoke('open-file');
   };
+
   const [folder, setFolderPath] = useState<string>('');
   const [fileName, setFileName] = useState<string>('Untitled');
   const [isShowFileNameModal, setIsShowFileNameModal] =
     useState<boolean>(false);
   const handleNewFile = async () => {
-    await window.electron.ipcRenderer.invoke('open-folder');
-    window.electron.ipcRenderer.once('open-folder-reply', (args: string[]) => {
+    await ipcRenderer.invoke('open-folder');
+    ipcRenderer.once('open-folder-reply', (args: string[]) => {
       setFolderPath(args[0] as string);
     });
     setIsShowFileNameModal(true);
     setPath('wait-for-filename');
   };
 
-  const handleAddFilename = async (folder: string) => {
+  const handleAddFilename = async () => {
     setPath(`${folder}/${fileName}.cpp`);
     setIsShowFileNameModal(false);
-    await window.electron.ipcRenderer.invoke(
-      'create-file',
-      `${folder}/${fileName}.cpp`
-    );
+    await ipcRenderer.invoke('create-file', `${folder}/${fileName}.cpp`);
     setFolderPath('');
   };
 
@@ -99,7 +85,7 @@ const Hello = () => {
       </div>
       <div className="overlay"></div> */}
 
-      {path == '' && (
+      {path === '' && (
         <>
           <div className="welcomeModal">
             <div>
@@ -108,25 +94,24 @@ const Hello = () => {
               </h1>
               <p className="small">
                 <span className="appname">Code::Bork</span> is simple c++ ide
-                for macOS <br></br> this version is beta if u found any bugs
-                please report to discord{' '}
-                <span className="text-blue">@meen#9916</span>
+                for macOS <br /> this version is beta if u found any bugs please
+                report to discord <span className="text-blue">@meen#9916</span>
               </p>
             </div>
             <div className="flex gap end">
-              <div className="button" onClick={handleNewFile}>
+              <button type="button" className="button" onClick={handleNewFile}>
                 New File 💅
-              </div>
-              <div className="button" onClick={handleOpenFile}>
+              </button>
+              <button type="button" className="button" onClick={handleOpenFile}>
                 Open File 🥵
-              </div>
+              </button>
             </div>
           </div>
 
-          <div className="overlay"></div>
+          <div className="overlay" />
         </>
       )}
-      {folder != '' && isShowFileNameModal && (
+      {folder !== '' && isShowFileNameModal && (
         <>
           <div className="welcomeModal flex between">
             <div className="flex items-center">
@@ -139,26 +124,30 @@ const Hello = () => {
               <div>.cpp</div>
             </div>
             <div className="flex">
-              <div className="button" onClick={() => handleAddFilename(folder)}>
+              <button
+                type="button"
+                className="button"
+                onClick={handleAddFilename}
+              >
                 Create 🥺
-              </div>
+              </button>
             </div>
           </div>
 
-          <div className="overlay"></div>
+          <div className="overlay" />
         </>
       )}
       {isSetTheme && (
         <Editor
           value={code}
           onChange={(e) => {
-            window.electron.ipcRenderer.sendMessage('sync-code', [e, path]);
+            ipcRenderer.sendMessage('sync-code', [e, path]);
             setCode(e as string);
           }}
           height="100vh"
           defaultLanguage="cpp"
-          defaultValue={defaultCode}
-          theme={'dracular'}
+          defaultValue=""
+          theme="dracular"
           options={{
             fontFamily: 'Fira Code',
             fontSize: 15,
@@ -177,16 +166,16 @@ const Hello = () => {
 
       {path !== '' && (
         <div className="menuContainer">
-          <div onClick={() => runCode()} className="run">
+          <button type="button" onClick={() => runCode()} className="run">
             {isCompiling ? 'compiling...' : 'compile & run 🦮'}
-          </div>
+          </button>
         </div>
       )}
 
       {path !== '' && (
         <div className="menuContainerLeft">
           {!isSaved && (
-            <div className="saveNotify">don't forget to save your code</div>
+            <div className="saveNotify">dont forget to save your code</div>
           )}
         </div>
       )}

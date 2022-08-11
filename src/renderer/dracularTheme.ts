@@ -1,3 +1,5 @@
+import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+
 export default {
   base: 'vs-dark',
   inherit: true,
@@ -208,4 +210,4 @@ export default {
     'editorIndentGuide.activeBackground': '#9D550FB0',
     'editor.selectionHighlightBorder': '#222218',
   },
-};
+} as editor.IStandaloneThemeData;
