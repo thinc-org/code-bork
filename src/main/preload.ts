@@ -4,7 +4,8 @@ export type Channels =
   | 'ipc-example'
   | 'run-code'
   | 'read-code-file'
-  | 'sync-code';
+  | 'sync-code'
+  | 'terminal-stdin';
 
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
@@ -23,6 +24,9 @@ contextBridge.exposeInMainWorld('electron', {
     },
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
+    },
+    removeAllListeners(channel: Channels) {
+      ipcRenderer.removeAllListeners(channel);
     },
   },
 });

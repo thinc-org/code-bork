@@ -3,6 +3,7 @@
 body {
   margin: 0;
   font-family: 'Fira Code';
+  background-color: #282a36;
 }
 .relative {
   position: relative;
@@ -155,4 +156,7 @@ h1 {
   top: 20vh;
   position: absolute;
   background-color: #fff;
+}
+
+.editor {
 }

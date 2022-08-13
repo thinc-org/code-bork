@@ -1,17 +1,42 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Editor, { useMonaco } from '@monaco-editor/react';
+import { Resizable } from 're-resizable';
+
 import { hash } from './utils';
 import './App.css';
 import dracularTheme from './dracularTheme';
+import Terminal from './Terminal';
+
+const { ipcRenderer } = window.electron;
 
 const Hello = () => {
   const [code, setCode] = useState(``);
   const [path, setPath] = useState('');
+  const [viewSize, setViewSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
   const [isSetTheme, setIsSetTheme] = useState(false);
   const [lastHash, setLastHash] = useState(0);
   const [isCompiling, setIsCompiling] = useState(false);
-  const { ipcRenderer } = window.electron;
+  const [terminalWidth, setTerminalWidth] = useState(window.innerWidth * 0.3);
+  const [isShowTerminal, setIsShowTerminal] = useState(false);
+
+  useLayoutEffect(() => {
+    setTerminalWidth(window.innerWidth * 0.3);
+    const onResize = () => {
+      setViewSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
   useEffect(() => {
     function handleKeyPress(event: KeyboardEvent) {
       if (event.metaKey && event.key === 's') {
@@ -21,16 +46,26 @@ const Hello = () => {
       }
     }
     window.addEventListener('keydown', handleKeyPress, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress, true);
+    };
   });
 
   const isSaved = hash(code) === lastHash;
-  ipcRenderer.once('read-code-file', (args: string[]) => {
-    setCode(args[0] as string);
-    setPath(args[1] as string);
-  });
+  useEffect(() => {
+    const onReadCode = (args: string[]) => {
+      setCode(args[0] as string);
+      setPath(args[1] as string);
+    };
+    ipcRenderer.once('read-code-file', onReadCode);
+    return () => {
+      ipcRenderer.removeListener('read-code-file', onReadCode);
+    };
+  }, []);
 
   const runCode = async () => {
     setIsCompiling(true);
+    setIsShowTerminal(true);
     await ipcRenderer.invoke('run-code', [code, path]);
     setIsCompiling(false);
   };
@@ -74,6 +109,18 @@ const Hello = () => {
     setIsShowFileNameModal(false);
     await ipcRenderer.invoke('create-file', `${folder}/${fileName}.cpp`);
     setFolderPath('');
+  };
+  const beforeResizeTerminalWidth = useRef(0);
+  const onResizeTerminal = (
+    _e: MouseEvent | TouchEvent,
+    _direction: string,
+    _ref: HTMLElement,
+    d: {
+      height: number;
+      width: number;
+    }
+  ) => {
+    setTerminalWidth(beforeResizeTerminalWidth.current + d.width);
   };
 
   return (
@@ -138,24 +185,58 @@ const Hello = () => {
         </>
       )}
       {isSetTheme && (
-        <Editor
-          value={code}
-          onChange={(e) => {
-            ipcRenderer.sendMessage('sync-code', [e, path]);
-            setCode(e as string);
-          }}
-          height="100vh"
-          defaultLanguage="cpp"
-          defaultValue=""
-          theme="dracular"
-          options={{
-            fontFamily: 'Fira Code',
-            fontSize: 15,
-            minimap: {
-              enabled: false,
-            },
-          }}
-        />
+        <div className="flex relative">
+          <div className="editor relative">
+            <Editor
+              value={code}
+              onChange={(e) => {
+                ipcRenderer.sendMessage('sync-code', [e, path]);
+                setCode(e as string);
+              }}
+              height="100vh"
+              width={viewSize.width - (isShowTerminal ? terminalWidth : 0)}
+              defaultLanguage="cpp"
+              defaultValue=""
+              theme="dracular"
+              options={{
+                fontFamily: 'Fira Code',
+                fontSize: 15,
+                minimap: {
+                  enabled: false,
+                },
+              }}
+            />
+          </div>
+          <Resizable
+            style={{
+              height: '100vh',
+            }}
+            enable={{
+              top: false,
+              right: false,
+              bottom: false,
+              left: true,
+              topRight: false,
+              bottomRight: false,
+              bottomLeft: false,
+              topLeft: false,
+            }}
+            size={{
+              width: isShowTerminal ? terminalWidth : 0,
+              height: viewSize.height,
+            }}
+            onResizeStart={() => {
+              beforeResizeTerminalWidth.current = terminalWidth;
+            }}
+            onResize={onResizeTerminal}
+          >
+            <Terminal
+              isShow={isShowTerminal}
+              setIsShow={setIsShowTerminal}
+              width={isShowTerminal ? terminalWidth : 0}
+            />
+          </Resizable>
+        </div>
       )}
 
       {/* {'path' !== '' && (

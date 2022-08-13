@@ -1,13 +1,10 @@
 import {
   app,
   Menu,
-  shell,
   dialog,
   BrowserWindow,
   MenuItemConstructorOptions,
   OpenDialogReturnValue,
-  ipcRenderer,
-  ipcMain,
 } from 'electron';
 
 const fs = require('fs'); // Load the File System to execute our common tasks (CRUD)
@@ -109,7 +106,7 @@ export default class MenuBuilder {
 
                 fs.readFile(fileNames, 'utf-8', (err: any, data: any) => {
                   if (err) {
-                    alert('An error ocurred reading the file :' + err.message);
+                    alert(`An error ocurred reading the file :${err.message}`);
                     return;
                   }
                   this.mainWindow.webContents.send('read-code-file', [

@@ -1,0 +1,20 @@
+.terminal {
+  background-color: #000;
+  flex-direction: column;
+  display: flex;
+  height: 100vh;
+}
+
+.terminal-head {
+  color: #fff;
+  font-size: 0.8em;
+  padding: 0.5em;
+  border-bottom: 1px solid #282a36;
+}
+
+.terminal-content {
+  padding: 0.5em;
+  color: #fff;
+  font-size: 0.8em;
+  overflow-y: scroll;
+}

@@ -6,16 +6,16 @@ import {
   BrowserWindow,
   shell,
   ipcMain,
-  OpenDialogReturnValue,
   dialog,
-  globalShortcut,
+  IpcMainInvokeEvent,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import fs from 'fs';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, spawnPromise } from './util';
 import { onRun } from './modules/buildAndRun';
-import fs from 'fs';
+
 class AppUpdater {
   constructor() {
     log.transports.file.level = 'info';
@@ -25,37 +25,35 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let code = ``;
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
 });
 
-ipcMain.handle('run-code', onRun);
+ipcMain.handle('run-code', (_event: IpcMainInvokeEvent, arg: string[]) =>
+  onRun(_event, arg, mainWindow)
+);
 ipcMain.handle('save-file', (_event, args) => {
   fs.writeFileSync(args[1], args[0]);
 });
-ipcMain.handle('open-file', () => {
-  dialog
-    .showOpenDialog({ properties: ['openFile'] })
-    .then((value: OpenDialogReturnValue) => {
-      const fileNames = value.filePaths[0];
-      // fileNames is an array that contains all the selected
-      if (fileNames === undefined) {
-        console.log('No file selected');
-        return;
-      }
-
-      fs.readFile(fileNames, 'utf-8', (err: any, data: any) => {
-        if (err) {
-          alert('An error ocurred reading the file :' + err.message);
-          return;
-        }
-        if (mainWindow)
-          mainWindow.webContents.send('read-code-file', [data, fileNames]);
-      });
-    });
+ipcMain.handle('open-file', async () => {
+  const value = await dialog.showOpenDialog({ properties: ['openFile'] });
+  const fileNames = value.filePaths[0];
+  if (fileNames === undefined) {
+    console.log('No file selected');
+    return;
+  }
+  fs.readFile(fileNames, (err: NodeJS.ErrnoException | null, data: Buffer) => {
+    if (err) {
+      return;
+    }
+    if (mainWindow)
+      mainWindow.webContents.send('read-code-file', [
+        data.toString(),
+        fileNames,
+      ]);
+  });
 });
 
 ipcMain.handle('open-folder', async (_event) => {
